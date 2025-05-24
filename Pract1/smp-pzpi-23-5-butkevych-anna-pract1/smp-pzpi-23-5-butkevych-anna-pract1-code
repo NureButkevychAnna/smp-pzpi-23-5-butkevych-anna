@@ -1,0 +1,60 @@
+#!/bin/bash
+
+if (( $# != 2 || $1 < 8 || $2 < ($1 / 2 * 2) - 1 || $2 > ($1 / 2 * 2) )); then
+    echo "Failed to build the tree" >&2
+    exit 1
+fi
+
+tree_lvl=$(( $1 / 2 * 2 ))
+crown_span=$(( tree_lvl - 1 ))
+
+generate_layer() {
+    local seg_depth=$(( (tree_lvl - 2) / 2 ))
+    local seg_width=$(( crown_span - 2 ))
+    local char="*"
+
+    for ((step = 1; step <= seg_depth; step++)); do
+        local chars=$(( 1 + (step - 1) * 2 ))
+        local pad=$(( ((seg_width - chars) / 2) + 1 ))
+
+        printf "%${pad}s" ""
+        printf "%${chars}s\n" | tr ' ' "$char"
+
+        if [[ "$char" == "*" ]]; then
+            char="#"
+        else
+            char="*"
+        fi
+    done
+
+    step=2
+    until [[ $step -gt seg_depth ]]; do
+        local chars=$(( 1 + (step - 1) * 2 ))
+        local pad=$(( ((seg_width - chars) / 2) + 1 ))
+
+        printf "%${pad}s" ""
+        printf "%${chars}s\n" | tr ' ' "$char"
+
+        if [[ "$char" == "*" ]]; then
+            char="#"
+        else
+            char="*"
+        fi
+        ((step++))
+    done
+}
+
+generate_layer $(((tree_lvl - 1) / 2)) $((crown_span - 2))
+
+stem_pad=$(( (crown_span - 3) / 2 ))
+
+for part in 1 2; do
+    printf "%${stem_pad}s###\n"
+done
+
+line=0
+while [[ $line -lt $crown_span ]]; do
+    printf "*"
+    ((line++))
+done
+printf "\n"
