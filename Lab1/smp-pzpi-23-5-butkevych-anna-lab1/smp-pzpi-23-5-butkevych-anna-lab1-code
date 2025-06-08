@@ -1,0 +1,170 @@
+#!/bin/bash
+
+# === Налаштування та змінні ===
+SCRIPT_NAME=$(basename "$0")
+VERSION="0.1"
+TEMP_UTF8=""
+TEMP_FILTERED=""
+TEMP_SORTED=""
+
+trap 'rm -f "$TEMP_UTF8" "$TEMP_FILTERED" "$TEMP_SORTED"' EXIT
+
+# === Функції ===
+function display_help() {
+    cat << EOF
+Використання: $0 [--help | --version] | [[-q|--quiet] [академ_група] файл_із_cist.csv]
+Скрипт для перетворення CSV-файлу розкладу.
+EOF
+    exit 0
+}
+
+function display_version() {
+    echo "$SCRIPT_NAME версія $VERSION"
+    exit 0
+}
+
+function error_exit() {
+    echo "$SCRIPT_NAME: Помилка: $1" >&2
+    exit 1
+}
+
+# === Основна логіка ===
+
+# --- Обробка аргументів ---
+is_quiet=false
+target_group=""
+source_csv=""
+
+args_copy=("$@")
+for arg in "${args_copy[@]}"; do
+    case "$arg" in
+        --help) display_help ;;
+        --version) display_version ;;
+        -q|--quiet) is_quiet=true ;;
+    esac
+done
+
+for arg in "$@"; do
+    case "$arg" in -q|--quiet) shift ;; *) ;; esac
+done
+if [[ $# -gt 0 ]]; then target_group=$1; fi
+if [[ $# -gt 1 ]]; then source_csv=$2; fi
+
+# --- Інтерактивний режим ---
+if [[ -z "$source_csv" ]]; then
+    PS3="Будь ласка, виберіть файл розкладу (введіть номер): "
+    files=()
+    while IFS= read -r file_choice; do
+        if [[ -n "$file_choice" ]]; then files+=("$file_choice"); fi
+    done < <(ls -v TimeTable_??_??_20??.csv 2>/dev/null)
+    if [[ ${#files[@]} -eq 0 ]]; then error_exit "У поточній директорії не знайдено файлів розкладу."; fi
+    
+    select choice in "${files[@]}"; do
+        if [[ -n "$choice" ]]; then source_csv=$choice; break; fi
+    done
+fi
+
+if [[ ! -f "$source_csv" ]] || [[ ! -r "$source_csv" ]]; then
+    error_exit "Файл '$source_csv' недоступний для читання."
+fi
+
+# -----
+echo -e "\n--- Крок 1: Перевірка вибору ---"
+echo "Ви обрали вхідний файл: '$source_csv'"
+
+# 1. Підготовка файлу
+TEMP_UTF8=$(mktemp)
+iconv -f WINDOWS-1251 -t UTF-8 "$source_csv" | tr -d '\r' > "$TEMP_UTF8"
+if [[ ! -s "$TEMP_UTF8" ]]; then error_exit "Не вдалося перекодувати файл."; fi
+
+# 2. Пошук груп
+if [[ -z "$target_group" ]]; then
+    groups=()
+    while IFS= read -r group_choice; do
+        if [[ -n "$group_choice" ]]; then groups+=("$group_choice"); fi
+    done < <(grep -o -E '[А-ЯІЇЄ]{2,4}-[0-9]{2,}-[0-9]{1,2}' "$TEMP_UTF8" | sort -u)
+    if [[ ${#groups[@]} -eq 0 ]]; then error_exit "У файлі не знайдено жодної групи."; fi
+    
+    if [[ ${#groups[@]} -eq 1 ]]; then
+        target_group="${groups[0]}"
+    else
+        echo "Виберіть групу:" >&2
+        PS3="Ваш вибір: "
+        select choice in "${groups[@]}"; do
+            if [[ -n "$choice" ]]; then target_group=$choice; break; fi
+        done
+    fi
+fi
+echo "Ви обрали групу: '$target_group'"
+
+
+# --- Обробка ---
+# Надійний спосіб отримати дату з імені файлу
+date_part=$(echo "$source_csv" | sed -e 's/^.*TimeTable_//' -e 's/\.csv$//')
+# Створюємо файл на робочому столі
+output_csv_path="$HOME/Desktop/Google_TimeTable_${date_part}.csv"
+
+echo -e "\n--- Крок 2: Обробка даних ---"
+echo "Я буду створювати файл з назвою: $(basename "$output_csv_path")"
+echo "За адресою: $output_csv_path"
+
+# Фільтрація
+TEMP_FILTERED=$(mktemp)
+grep -o "\"$target_group - [^\"]*\",\"[^\"]*\",\"[^\"]*\",\"[^\"]*\",\"[^\"]*\"" "$TEMP_UTF8" > "$TEMP_FILTERED"
+if [[ ! -s "$TEMP_FILTERED" ]]; then
+    error_exit "Не знайдено жодного запису для групи '$target_group'. (Крок фільтрації не дав результатів)"
+fi
+
+# Сортування
+TEMP_SORTED=$(mktemp)
+awk -F'"' '{ split($4, d, "."); print d[3]d[2]d[1]$6"|"$0; }' "$TEMP_FILTERED" | sort | cut -d'|' -f2- > "$TEMP_SORTED"
+
+# Фінальне форматування
+echo "Subject,Start Date,Start Time,End Date,End Time,Description" > "$output_csv_path"
+awk -F'"' -v group_prefix="$target_group - " '
+    function format_time_12h(time24) {
+        split(time24, parts, ":");
+        h = parts[1] + 0; m = parts[2];
+        ampm = (h < 12 || h == 24) ? "AM" : "PM";
+        h = h % 12; if (h == 0) h = 12;
+        return sprintf("%d:%s %s", h, m, ampm);
+    }
+    {
+        subject_raw = $2; start_date = $4; start_time = $6; end_date = $8; end_time = $10;
+        if (subject_raw == "" || start_date ~ /Дата/) next;
+        split(start_date, d_parts, ".");
+        google_date = d_parts[2] "/" d_parts[1] "/" d_parts[3];
+        google_start_time = format_time_12h(start_time);
+        google_end_time = format_time_12h(end_time);
+        subject = subject_raw; sub(group_prefix, "", subject);
+        lesson_key = subject; gsub(/ DL.*/, "", lesson_key);
+        lesson_counters[lesson_key]++; lesson_number = lesson_counters[lesson_key];
+        final_subject = subject "; №" lesson_number; description = subject_raw;
+        printf("\"%s\",%s,\"%s\",%s,\"%s\",\"%s\"\n",
+               final_subject, google_date, google_start_time, google_date, google_end_time, description);
+    }
+' "$TEMP_SORTED" >> "$output_csv_path"
+
+# --- Вивід результату ---
+if [[ "$is_quiet" = false ]]; then
+    if [[ -s "$output_csv_path" ]]; then
+        echo -e "\n--- Крок 3: Завершення ---"
+        echo "Файл успішно створено на вашому РОБОЧОМУ СТОЛІ."
+        echo "Назва файлу: $(basename "$output_csv_path")"
+        echo "Зараз я спробую його відкрити..."
+        
+        sleep 2 # Невелика пауза, щоб ви встигли прочитати
+        
+        # `open` - це стандартна команда macOS для відкриття файлів
+        if command -v open &> /dev/null; then
+            open "$output_csv_path"
+        else
+            echo "Команда 'open' не знайдена. Будь ласка, відкрийте файл вручну з вашого робочого столу."
+        fi
+    else
+        error_exit "Не вдалося створити записи. Фінальний файл порожній."
+        rm "$output_csv_path"
+    fi
+fi
+
+exit 0
