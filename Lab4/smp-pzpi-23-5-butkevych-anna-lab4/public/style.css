@@ -1,0 +1,89 @@
+body {
+    background-color: #f4f5f6;
+}
+.container {
+    background-color: #fff;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e1e1e1;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+.main-header h1 a {
+    text-decoration: none;
+    color: #333;
+}
+.main-footer {
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e1e1e1;
+    color: #888;
+}
+.button-danger {
+    background-color: #ff5a5f;
+    color: white;
+    border-color: #ff5a5f;
+}
+.button-danger:hover {
+    background-color: #e04f54;
+    border-color: #e04f54;
+    color: white;
+}
+.cart-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.cancel-form, .pay-form {
+    display: inline;
+    margin: 0;
+}
+.home-page {
+    text-align: center;
+    padding: 40px 0;
+}
+.success-message {
+    color: #28a745;
+    background-color: #e9f7ea;
+    border: 1px solid #c3e6cb;
+    padding: 10px;
+    border-radius: 4px;
+}
+/* ... (попередні стилі) ... */
+
+/* Повідомлення про помилки/успіх */
+.error-message {
+    color: #D8000C;
+    background-color: #FFD2D2;
+    border: 1px solid;
+    padding: 10px;
+    border-radius: 4px;
+}
+.success-message {
+    color: #28a745;
+    background-color: #e9f7ea;
+    border: 1px solid #c3e6cb;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+/* Стилі для сторінки профілю */
+.profile-avatar {
+    text-align: center;
+}
+.avatar-image {
+    max-width: 150px;
+    height: auto;
+    border-radius: 50%;
+    margin-bottom: 15px;
+    border: 3px solid #f1f1f1;
+}
