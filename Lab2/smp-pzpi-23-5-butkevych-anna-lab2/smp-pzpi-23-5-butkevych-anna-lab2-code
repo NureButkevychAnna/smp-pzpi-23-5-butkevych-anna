@@ -1,14 +1,17 @@
 <?php
 
-$products = [
-    1 => ["name" => "Молоко пастеризоване", "price" => 12],
-    2 => ["name" => "Хліб чорний", "price" => 9],
-    3 => ["name" => "Сир білий", "price" => 21],
-    4 => ["name" => "Сметана 20%", "price" => 25],
-    5 => ["name" => "Кефір 1%", "price" => 19],
-    6 => ["name" => "Вода газована", "price" => 18],
-    7 => ["name" => "Печиво \"Весна\"", "price" => 14]
-];
+$productsFile = __DIR__ . "/products.json";
+if (!file_exists($productsFile)) {
+    echo "Файл з продуктами не знайдено: $productsFile\n";
+    exit(1);
+}
+
+$jsonData = file_get_contents($productsFile);
+$products = json_decode($jsonData, true);
+if (!is_array($products)) {
+    echo "Помилка: Неможливо розпарсити JSON з продуктами.\n";
+    exit(1);
+}
 
 $cart = [];
 $user = ["name" => "", "age" => 0];
@@ -26,10 +29,16 @@ function printMenu() {
 
 function selectProducts(&$cart, $products) {
     while (true) {
-        echo "\n№  НАЗВА                 ЦІНА\n";
+        echo "\n№  НАЗВА                      ЦІНА\n";
         foreach ($products as $num => $item) {
-            printf("%-2d %-22s %d\n", $num, $item["name"], $item["price"]);
+            $name = $item["name"];
+            $price = $item["price"];
+            $pad = 26 - mb_strlen($name, 'UTF-8');
+            $padded_name = $name . str_repeat(' ', max($pad, 0));
+
+            printf("%-2d %s %5d\n", $num, $padded_name, $price);
         }
+
         echo "   -----------\n0  ПОВЕРНУТИСЯ\n";
         echo "Виберіть товар: ";
         $choice = trim(fgets(STDIN));
@@ -87,7 +96,7 @@ function showReceipt($cart, $products) {
         $price = $products[$id]['price'];
         $cost = $price * $qty;
         $total += $cost;
-        printf("%-2d %-22s %-5d %-9d %-6d\n", $i++, $name, $price, $qty, $cost);
+        printf("%-2d %-25s %6d %8d %9d\n", $i++, $name, $price, $qty, $cost);
     }
     echo "РАЗОМ ДО CПЛАТИ: $total\n";
 }
@@ -139,4 +148,3 @@ while (true) {
             echo "ПОМИЛКА! Введіть правильну команду\n";
     }
 }
-?>
