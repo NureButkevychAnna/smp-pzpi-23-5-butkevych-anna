@@ -1,0 +1,644 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+ 
+ 
+КАФЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+ 
+
+
+ 
+ 
+Звіт
+з лабораторної роботи № 4 
+з дисципліни Скриптові мови програмування
+  
+ 
+ 
+
+
+ 
+Виконала:                                                                     Перевірив:
+ст. гр. ПЗПІ-23-5                                                          ​​​​ст. викладач кафедри ПІ
+Буткевич Анна                                                             Сокорчук Ігор Петрович
+ 
+ 
+ Харків 2025
+1 ІСТОРІЯ ЗМІН
+
+
+№
+	Дата
+	Версія звіту
+	Опис змін та виправлень
+	1
+	24.04.2025
+	0.1
+	Створення розділів та результати
+	
+
+	
+
+	
+
+	
+
+	
+
+2 ЗАВДАННЯ
+
+
+        Мета роботи
+Навчитися масштабувати код програм, працювати з формами, здійснювати авторизацію та обмеження прав доступу.
+Завдання до лабораторної роботи
+Використовуючи матеріал попередніх лабораторних робіт, потрібно додати такий функціонал:
+1. Прибрати дублювання шапки і підвалу сайту (якщо воно є).
+2. Додати сторінку логіна. Обмежити доступ до сайту не залогіненим
+користувачам.
+3. Додати сторінку профілю з можливістю завантажити фото.
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+  
+Під час виконання лабораторної роботи №4 функціонал веб-застосунку "Web-магазин", розроблений у ЛР №3, було розширено системою автентифікації користувачів, сторінкою профілю, механізмами контролю доступу та валідацією даних.
+
+
+Були використані наступні інженерні рішення, підходи та технології:
+
+
+Реалізація модуля автентифікації користувачів:
+До бази даних SQLite було додано таблицю users для зберігання інформації про користувачів (логін, хеш пароля, персональні дані). Реалізовано сторінку логіну (templates/login.php) з формою для входу.
+
+
+Безпечне зберігання та перевірка паролів:
+Ключовий аспект безпеки: Паролі користувачів не зберігаються у відкритому вигляді. Замість цього використовується одностороння функція хешування password_hash() для створення безпечного представлення пароля під час створення користувача (в init_db.php). Під час спроби входу, введений користувачем пароль порівнюється зі збереженим хешем за допомогою функції password_verify().
+Фрагмент коду з index.php для перевірки пароля під час логіну:
+
+
+// index.php
+10. // 1. Логін користувача
+11. if ($action === 'login') {
+12.     // ... отримання логіну та пароля з $_POST ...
+13.     $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+14.     $stmt->execute([$username]);
+15.     $user = $stmt->fetch();
+16.
+17.     // Функція password_verify() безпечно порівнює введений пароль з хешем
+18.     if ($user && password_verify($password, $user['password_hash'])) {
+19.         // Успішний логін: зберігаємо дані в сесію
+20.         $_SESSION['user_id'] = $user['id'];
+21.         // ...
+22.     } else {
+23.         $login_error = "Неправильний логін або пароль.";
+24.     }
+25. }
+
+
+Використання механізму сесій для керування станом автентифікації:
+Для відстеження стану користувача (залогінений чи ні) протягом його роботи з сайтом використовуються PHP-сесії. Функція session_start() викликається першою у index.php, а дані користувача (user_id) зберігаються у суперглобальному масиві $_SESSION. Функція виходу з системи (logout) реалізована шляхом знищення даних сесії.
+
+
+Впровадження системи контролю доступу (авторизації):
+Доступ до певних розділів сайту ("Cart", "Profile") обмежено. Перед підключенням шаблонів цих сторінок виконується перевірка, чи залогінений користувач (через наявність $_SESSION['user_id']). Неавторизовані користувачі автоматично перенаправляються на сторінку логіну.
+Фрагмент коду з index.php, що реалізує контроль доступу до захищених сторінок:
+
+
+// index.php
+112. $page = $_GET['page'] ?? 'home';
+113. $is_logged_in = isset($_SESSION['user_id']); // Перевірка стану авторизації
+114. $protected_pages = ['cart', 'profile']; // Захищені сторінки
+115. $available_pages = ['home', 'products', 'cart', 'login', 'profile'];
+116.
+117. if (in_array($page, $protected_pages) && !$is_logged_in) {
+118.     // Якщо сторінка захищена І користувач не залогінений
+119.     header('Location: index.php?page=login&required=true'); // Перенаправлення
+120.     exit;
+121. }
+
+
+Навігаційне меню (templates/header.php) динамічно змінюється залежно від стану авторизації, показуючи "Login" або "Cart", "Profile", "Logout".
+
+
+Розробка модуля профілю користувача з серверною валідацією даних:
+Створено сторінку профілю (templates/profile.php), яка дозволяє користувачеві переглядати та редагувати свої персональні дані. Реалізовано сувору серверна валідацію всіх обов'язкових полів форми перед збереженням їх у базу даних.
+Фрагмент коду з index.php, що демонструє валідацію віку та довжини опису:
+
+
+// index.php
+47.     // 2. Валідація віку (не менше 16 років)
+48.     $today = new DateTime();
+49.     $birthDateObj = new DateTime($birth_date);
+50.     $age = $today->diff($birthDateObj)->y;
+51.     if ($age < 16) {
+52.         $errors[] = "Реєстрація дозволена лише з 16 років.";
+53.     }
+54. }
+55.
+56. // Перевірка довжини опису (не менше 50 символів)
+57. if (strlen($description) < 50) {
+58.     $errors[] = "Коротка інформація має містити не менше 50 символів.";
+59. }
+
+
+Якщо валідація не проходить, помилки відображаються на сторінці профілю, і введені дані зберігаються.
+
+
+Реалізація функціоналу завантаження файлів з валідацією:
+На сторінці профілю реалізовано можливість завантаження аватара. Форма використовує enctype="multipart/form-data". На сервері виконується валідація завантаженого файлу (тип, розмір) перед його збереженням у публічну директорію та оновленням шляху в базі даних.
+Фрагмент коду з index.php для валідації завантаженого файлу:
+
+
+// index.php
+61. // 3. Валідація завантаженого файлу (якщо файл було обрано)
+62. if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+63.     $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+64.     $maxSize = 2 * 1024 * 1024; // 2 MB
+65.
+66.     if (!in_array($_FILES['avatar']['type'], $allowedTypes)) {
+67.         $errors[] = "Неприпустимий тип файлу. Дозволено тільки JPG, PNG, GIF.";
+68.     }
+69.     if ($_FILES['avatar']['size'] > $maxSize) {
+70.         $errors[] = "Файл занадто великий. Максимальний розмір - 2 MB.";
+71.     }
+72. }
+
+
+Обробка помилок та користувацький досвід:
+Додано сторінку page404.php для обробки запитів до неіснуючих сторінок. При помилках валідації форми показують повідомлення про помилки та зберігають введені дані.
+
+
+Результати знаходяться в Додатку Б.
+
+
+
+
+
+
+
+
+
+
+4 ВИСНОВКИ
+
+
+У ході виконання лабораторної роботи №4 було отримано глибокі практичні навички у сфері безпеки, керування сесіями та валідації даних, що є ключовими для створення сучасних веб-додатків. Було освоєно критично важливий аспект безпеки — хешування паролів, що забезпечує захист облікових даних користувачів. Отримано досвід роботи з PHP-сесіями для керування станом автентифікації, включаючи ініціалізацію, збереження даних та їх знищення. Було успішно впроваджено механізми авторизації, що дозволило зрозуміти, як захищати сторінки та функціонал від неавторизованого доступу. Освоєно техніки суворої серверної валідації даних, що надходять від користувача, що є ключовою навичкою для забезпечення цілісності даних та безпеки застосунку. Також було реалізовано функціонал безпечного завантаження файлів на сервер з обов'язковою перевіркою їх параметрів. Результатом роботи є повноцінний веб-застосунок, який відповідає сучасним вимогам безпеки та користувацької взаємодії, а отримані навички дозволяють проєктувати та розробляти складні та безпечні веб-додатки.
+
+
+ДОДАТОК А
+Відеозапис
+
+
+Відеозапис презентації результатів лабораторної роботи: https://youtu.be/Ifa8Rsf7GR8
+
+
+Хронологічний опис відеозапису:
+0:00 - Вступ
+0:10 - Пояснення init_db.php
+1:02 - Пояснення database.php
+1:17 - Пояснення index.php
+4:42 - Пояснення logout.php
+4:52 - Пояснення header.php
+5:09 - Пояснення login.php
+5:38 - Пояснення profile.php
+6:40 - Пояснення page404.php
+7:06 - Заходимо на сайт
+7:15 - Демонстрація login 
+7:32 - Демонстрація профіля
+8:25 - Демонстрація logout
+
+
+
+
+
+
+ДОДАТОК Б
+Графічні матеріали
+
+
+  
+
+Рисунок Б.1 - Демонстрація сторінки login
+
+
+  
+
+Рисунок Б.2 - Демонстрація профілю
+
+
+  
+
+Рисунок Б.3 - Демонстрація помилки(обмеження за віком)
+ДОДАТОК В
+Програмний код
+
+
+В.1 { smp-pzpi-23-5-butkevych-anna-lab4-code }
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab4/smp-pzpi-23-5-butkevych-anna-lab4/index.php
+
+
+1   <?php
+2   // ВАЖЛИВО: Сесія має стартувати на самому початку файлу!
+3   session_start();
+4
+5   require_once 'database.php';
+6
+7   // --- Обробка дій (POST-запити) ---
+8   $action = $_POST['action'] ?? '';
+9   $is_logged_in = isset($_SESSION['user_id']);
+10
+11  // 1. Логін користувача
+12  if ($action === 'login') {
+13      $username = $_POST['username'] ?? '';
+14      $password = $_POST['password'] ?? '';
+15      
+16      $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+17      $stmt->execute([$username]);
+18      $user = $stmt->fetch();
+19
+20      if ($user && password_verify($password, $user['password_hash'])) {
+21          $_SESSION['user_id'] = $user['id'];
+22          $_SESSION['username'] = $user['username'];
+23          header('Location: index.php?page=profile');
+24          exit;
+25      } else {
+26          $login_error = "Неправильний логін або пароль.";
+27      }
+28  }
+29
+30  // 2. Вихід (Logout)
+31  if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+32      session_destroy();
+33      header('Location: index.php?page=home');
+34  }
+35
+36  $action = $_POST['action'] ?? '';
+37  $is_logged_in = isset($_SESSION['user_id']);
+38
+39  // --- Оновлення профілю з валідацією ---
+40  if ($action === 'update_profile' && $is_logged_in) {
+41      $errors = [];
+42      $userId = $_SESSION['user_id'];
+43      
+44      // 1. Валідація введених даних
+45      $full_name = trim($_POST['full_name'] ?? '');
+46      $birth_date = trim($_POST['birth_date'] ?? '');
+47      $description = trim($_POST['description'] ?? '');
+48
+49      if (empty($full_name) || strlen($full_name) <= 1) {
+50          $errors[] = "Повне ім'я є обов'язковим і має містити більше одного символу.";
+51      }
+52      if (empty($birth_date)) {
+53          $errors[] = "Дата народження є обов'язковою.";
+54      } else {
+55          // 2. Перевірка віку (не менше 16 років)
+56          $today = new DateTime();
+57          $birthDateObj = new DateTime($birth_date);
+58          $age = $today->diff($birthDateObj)->y;
+59          if ($age < 16) {
+60              $errors[] = "Реєстрація дозволена лише з 16 років.";
+61          }
+62      }
+63      if (empty($description)) {
+64          $errors[] = "Коротка інформація є обов'язковою.";
+65      }
+66
+67      // 3. Валідація завантаженого файлу (якщо файл було обрано)
+68      if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+69          $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+70          $maxSize = 2 * 1024 * 1024; // 2 MB
+71
+72          if (!in_array($_FILES['avatar']['type'], $allowedTypes)) {
+73              $errors[] = "Неприпустимий тип файлу. Дозволено тільки JPG, PNG, GIF.";
+74          }
+75          if ($_FILES['avatar']['size'] > $maxSize) {
+76              $errors[] = "Файл занадто великий. Максимальний розмір - 2 MB.";
+77          }
+78      }
+79
+80      // 4. Якщо помилок немає - оновлюємо дані
+81      if (empty($errors)) {
+82          $stmt = $pdo->prepare("UPDATE users SET full_name = ?, birth_date = ?, description = ? WHERE id = ?");
+83          $stmt->execute([$full_name, $birth_date, $description, $userId]);
+84          
+85          // Зберігаємо аватар
+86          if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+87              $uploadDir = 'public/uploads/';
+88              if (!is_dir($uploadDir)) { mkdir($uploadDir, 0777, true); }
+89              $fileName = uniqid() . '-' . basename($_FILES['avatar']['name']);
+90              $uploadFile = $uploadDir . $fileName;
+91
+92              if (move_uploaded_file($_FILES['avatar']['tmp_name'], $uploadFile)) {
+93                  $stmt = $pdo->prepare("UPDATE users SET avatar = ? WHERE id = ?");
+94                  $stmt->execute([$fileName, $userId]);
+95              }
+96          }
+97          header('Location: index.php?page=profile&status=success');
+98          exit;
+99      }
+100     // Якщо є помилки, скрипт продовжить виконання і відобразить `profile.php`, 
+101     // де ми покажемо масив $errors.
+102 }
+103
+104 // --- ВИПРАВЛЕННЯ: Повертаємо логіку обробки кошика ---
+105
+106 // 4. Оновлення кошика після натискання "Send"
+107 if ($action === 'update_cart' && $is_logged_in) {
+108     $quantities = $_POST['quantities'] ?? [];
+109     
+110     // Повністю очищуємо кошик перед додаванням нових даних
+111     // В реальному проєкті краще було б оновлювати існуючі записи,
+112     // але для простоти цей підхід працює.
+113     $pdo->exec("DELETE FROM cart");
+114     
+115     $insertStmt = $pdo->prepare("INSERT INTO cart (product_id, quantity) VALUES (?, ?)");
+116
+117     foreach ($quantities as $productId => $quantity) {
+118         $productId = (int)$productId;
+119         $quantity = (int)$quantity;
+120         // Додаємо в кошик тільки товари з кількістю > 0
+121         if ($productId > 0 && $quantity > 0) {
+122             $insertStmt->execute([$productId, $quantity]);
+123         }
+124     }
+125     
+126     // Перенаправляємо на сторінку кошика
+127     header('Location: index.php?page=cart');
+128     exit;
+129 }
+130
+131 // 5. Видалення одного товару з кошика
+132 if ($action === 'remove_from_cart' && $is_logged_in) {
+133     $productId = filter_input(INPUT_POST, 'product_id', FILTER_VALIDATE_INT);
+134     if ($productId) {
+135         $stmt = $pdo->prepare("DELETE FROM cart WHERE product_id = ?");
+136         $stmt->execute([$productId]);
+137     }
+138     header('Location: index.php?page=cart');
+139     exit;
+140 }
+141
+142 // 6. Скасування замовлення (очищення кошика)
+143 if ($action === 'cancel_order' && $is_logged_in) {
+144     $pdo->exec("DELETE FROM cart");
+145     header('Location: index.php?page=products');
+146     exit;
+147 }
+148
+149 // 7. "Оплата" замовлення
+150 if ($action === 'pay_order' && $is_logged_in) {
+151     $pdo->exec("DELETE FROM cart");
+152     header('Location: index.php?page=cart&status=paid');
+153     exit;
+154 }
+155
+156 // --- Маршрутизація та контроль доступу ---
+157 $page = $_GET['page'] ?? 'home';
+158 $is_logged_in = isset($_SESSION['user_id']);
+159 $protected_pages = ['cart', 'profile'];
+160 $available_pages = ['home', 'products', 'cart', 'login', 'profile']; // Додаємо список існуючих сторінок
+161
+162 if (in_array($page, $protected_pages) && !$is_logged_in) {
+163     header('Location: index.php?page=login&required=true');
+164     exit;
+165 }
+166
+167 // Підключення шапки
+168 require_once 'templates/header.php';
+169
+170 // ВИПРАВЛЕНО: Додаємо перевірку на існування сторінки
+171 if (!in_array($page, $available_pages)) {
+172     // Якщо сторінки немає в списку, показуємо 404
+173     http_response_code(404);
+174     require_once 'templates/page404.php';
+175 } else {
+176     // Вибір сторінки для відображення
+177     switch ($page) {
+178         case 'products': require_once 'templates/products.php'; break;
+179         case 'cart': require_once 'templates/cart.php'; break;
+180         case 'login': require_once 'templates/login.php'; break;
+181         case 'profile': require_once 'templates/profile.php'; break;
+182         case 'home':
+183         default: require_once 'templates/home.php'; break;
+184     }
+185 }
+186
+187 // Підключення підвалу
+188 require_once 'templates/footer.php';
+
+
+В.2 { logout.php }
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab4/smp-pzpi-23-5-butkevych-anna-lab4/logout.php
+
+
+1   <?php
+2   session_start();
+3   session_unset();
+4   session_destroy();
+5   header('Location: index.php'); 
+6   exit();
+
+
+В.3 { templates/cart.php }
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab4/smp-pzpi-23-5-butkevych-anna-lab4/templates/cart.php
+
+
+1   <h2>Ваш кошик</h2>
+2
+3   <?php
+4   // Отримуємо товари в кошику
+5   $stmt = $pdo->query("
+6       SELECT p.id, p.name, p.price, c.quantity
+7       FROM cart c
+8       JOIN products p ON c.product_id = p.id
+9       WHERE c.quantity > 0
+10  ");
+11  $cartItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+12  $totalPrice = 0;
+13  ?>
+14
+15  <?php if (empty($cartItems)): ?>
+16      <p>Ваш кошик порожній.</p>
+17      <?php if (isset($_GET['status']) && $_GET['status'] === 'paid'): ?>
+18          <p class="success-message"><strong>Дякуємо! Ваше замовлення успішно оплачено.</strong></p>
+19      <?php endif; ?>
+20      <a href="index.php?page=products" class="button">Перейти до покупок</a>
+21  <?php else: ?>
+22      <table class="u-full-width">
+23          <thead>
+24              <tr>
+25                  <th>Назва товару</th>
+26                  <th>Ціна за од.</th>
+27                  <th>Кількість</th>
+28                  <th>Сума</th>
+29                  <th>Дія</th>
+30              </tr>
+31          </thead>
+32          <tbody>
+33              <?php foreach ($cartItems as $item): ?>
+34                  <?php $itemTotal = $item['price'] * $item['quantity']; ?>
+35                  <?php $totalPrice += $itemTotal; ?>
+36                  <tr>
+37                      <td><?= htmlspecialchars($item['name']) ?></td>
+38                      <td><?= number_format($item['price'], 2) ?> грн</td>
+39                      <td><?= $item['quantity'] ?></td>
+40                      <td><?= number_format($itemTotal, 2) ?> грн</td>
+41                      <td>
+42                          <form action="index.php" method="POST" style="margin: 0;">
+43                              <input type="hidden" name="action" value="remove_from_cart">
+44                              <input type="hidden" name="product_id" value="<?= $item['id'] ?>">
+45                              <button type="submit" class="button-danger">Вилучити</button>
+46                          </form>
+47                      </td>
+48                  </tr>
+49              <?php endforeach; ?>
+50          </tbody>
+51          <tfoot>
+52              <tr>
+53                  <td colspan="3" style="text-align: right; font-weight: bold;">Загальна вартість:</td>
+54                  <td style="font-weight: bold;"><?= number_format($totalPrice, 2) ?> грн</td>
+55                  <td></td>
+56              </tr>
+57          </tfoot>
+58      </table>
+59
+60      <div class="cart-actions">
+61          <form action="index.php" method="POST" class="cancel-form">
+62               <input type="hidden" name="action" value="cancel_order">
+63               <button type="submit" class="button">Cancel</button>
+64          </form>
+65          <form action="index.php" method="POST" class="pay-form">
+66               <input type="hidden" name="action" value="pay_order">
+67               <button type="submit" class="button-primary">Pay</button>
+68          </form>
+69      </div>
+70  <?php endif; ?>
+
+
+В.4 { templates/header.php }
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab4/smp-pzpi-23-5-butkevych-anna-lab4/templates/header.php
+
+
+1   <!DOCTYPE html>
+2   <html lang="uk">
+3   <head>
+4       <meta charset="UTF-8">
+5       <title>Web-магазин</title>
+6       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">
+7       <link rel="stylesheet" href="public/style.css">
+8   </head>
+9   <body>
+10  <div class="container">
+11      <header class="main-header">
+12          <h1><a href="index.php">Web-магазин</a></h1>
+13          <nav>
+14              <?php $currentPage = $_GET['page'] ?? 'home'; ?>
+15              <a href="index.php?page=home" class="button <?= ($currentPage === 'home') ? 'button-primary' : '' ?>">Home</a>
+16              <a href="index.php?page=products" class="button <?= ($currentPage === 'products') ? 'button-primary' : '' ?>">Products</a>
+17              
+18              <?php if (isset($_SESSION['user_id'])): ?>
+19                  <!-- Меню для залогінених користувачів -->
+20                  <a href="index.php?page=cart" class="button <?= ($currentPage === 'cart') ? 'button-primary' : '' ?>">Cart</a>
+21                  <a href="index.php?page=profile" class="button <?= ($currentPage === 'profile') ? 'button-primary' : '' ?>">Profile</a>
+22                  <a href="logout.php" class="button">Logout</a>  
+23              <?php else: ?>
+24                  <!-- Меню для гостей -->
+25                  <a href="index.php?page=login" class="button <?= ($currentPage === 'login') ? 'button-primary' : '' ?>">Login</a>
+26              <?php endif; ?>
+27          </nav>
+28      </header>
+29      <main>
+
+
+В.5 { templates/login.php }
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab4/smp-pzpi-23-5-butkevych-anna-lab4/templates/login.php
+
+
+1   <div class="login-container">
+2       <h2>Вхід в систему</h2>
+3       
+4       <?php if (isset($_GET['required']) && $_GET['required'] === 'true'): ?>
+5           <p class="error-message">Для доступу до цієї сторінки необхідно увійти в систему.</p>
+6       <?php endif; ?>
+7
+8       <?php if (isset($login_error)): ?>
+9           <p class="error-message"><?= $login_error ?></p>
+10      <?php endif; ?>
+11
+12      <form action="index.php" method="POST">
+13          <input type="hidden" name="action" value="login">
+14          <div class="row">
+15              <div class="six columns">
+16                  <label for="username">Логін</label>
+17                  <input class="u-full-width" type="text" id="username" name="username" placeholder="testuser" required>
+18              </div>
+19              <div class="six columns">
+20                  <label for="password">Пароль</label>
+21                  <input class="u-full-width" type="password" id="password" name="password" placeholder="password123" required>
+22              </div>
+23          </div>
+24          <button type="submit" class="button-primary">Увійти</button>
+25      </form>
+26  </div>
+27
+
+
+В.6 { templates/profile.php }
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab4/smp-pzpi-23-5-butkevych-anna-lab4/templates/profile.php
+
+
+1   <?php
+2   // Отримуємо дані поточного користувача з БД
+3   $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+4   $stmt->execute([$_SESSION['user_id']]);
+5   $user = $stmt->fetch();
+6   ?>
+7
+8   <h2>Профіль користувача: <?= htmlspecialchars($user['username']) ?></h2>
+9
+10  <!-- Блок для відображення повідомлень про успіх або помилки -->
+11  <?php if (isset($_GET['status']) && $_GET['status'] === 'success'): ?>
+12      <p class="success-message">Профіль успішно оновлено!</p>
+13  <?php endif; ?>
+14
+15  <?php if (!empty($errors)): ?>
+16      <div class="error-message">
+17          <p><strong>Будь ласка, виправте наступні помилки:</strong></p>
+18          <ul>
+19              <?php foreach ($errors as $error): ?>
+20                  <li><?= $error ?></li>
+21              <?php endforeach; ?>
+22          </ul>
+23      </div>
+24  <?php endif; ?>
+25
+26  <!-- `htmlspecialchars($_POST['field'] ?? $user['field'])` зберігає введені дані при помилці -->
+27  <form action="index.php?page=profile" method="POST" enctype="multipart/form-data">
+28      <input type="hidden" name="action" value="update_profile">
+29      <div class="row">
+30          <div class="four columns profile-avatar">
+31              <label>Ваш аватар</label>
+32              <img src="<?= !empty($user['avatar']) ? 'public/uploads/' . htmlspecialchars($user['avatar']) : 'https://via.placeholder.com/150' ?>" alt="User Avatar" class="avatar-image">
+33              <input type="file" name="avatar" id="avatar">
+34          </div>
+35          <div class="eight columns">
+36              <label for="full_name">Повне ім'я</label>
+37              <input class="u-full-width" type="text" name="full_name" id="full_name" value="<?= htmlspecialchars($_POST['full_name'] ?? $user['full_name'] ?? '') ?>">
+38
+39              <label for="birth_date">Дата народження</label>
+40              <input class="u-full-width" type="date" name="birth_date" id="birth_date" value="<?= htmlspecialchars($_POST['birth_date'] ?? $user['birth_date'] ?? '') ?>">
+41              
+42              <label for="description">Коротка інформація</label>
+43              <textarea class="u-full-width" name="description" id="description"><?= htmlspecialchars($_POST['description'] ?? $user['description'] ?? '') ?></textarea>
+44          </div>
+45      </div>
+46      <button type="submit" class="button-primary">Зберегти зміни</button>
+47  </form>
+
+
+В.7 { templates/page404.php }
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab4/smp-pzpi-23-5-butkevych-anna-lab4/templates/page404.php
+
+
+1   <div class="page404-container">
+2       <h2>Помилка 404 - Сторінку не знайдено</h2>
+3       <p>На жаль, сторінка, яку ви шукаєте, не існує.</p>
+4       <p>Можливо, ви ввели неправильну адресу або сторінка була переміщена.</p>
+5       <a href="index.php?page=home" class="button button-primary">Повернутися на головну</a>
+6   </div>

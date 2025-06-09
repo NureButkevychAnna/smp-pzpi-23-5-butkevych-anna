@@ -1,0 +1,519 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+ 
+ 
+КАФЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+ 
+
+
+ 
+ 
+Звіт
+з лабораторної роботи № 3 
+з дисципліни Скриптові мови програмування
+  
+ 
+ 
+
+
+ 
+Виконала:                                                                     Перевірив:
+ст. гр. ПЗПІ-23-5                                                          ​​​​ст. викладач кафедри ПІ
+Буткевич Анна                                                             Сокорчук Ігор Петрович
+ 
+ 
+ Харків 2025
+1 ІСТОРІЯ ЗМІН
+
+
+№
+	Дата
+	Версія звіту
+	Опис змін та виправлень
+	1
+	23.04.2025
+	0.1
+	Створення розділів та результати
+	
+
+	
+
+	
+
+	
+
+	
+
+2 ЗАВДАННЯ
+
+
+        Завдання до лабораторної роботи
+Опис проекту «Web-магазин»
+Результатом лабораторної роботи має бути робочий сайт з інтернетмагазином. Він має складатися з таких розділів:
+1. Сторінка товарів.
+2. Сторінка «Кошик».
+Кожна сторінка має складатися з таких частин:
+1. «Шапка» сторінки,
+2. Тіло сторінки.
+3. «Підвал» або Footer сторінки.
+На сторінці товарів необхідно відобразити список доступних для покупки найменувань з можливістю вибрати кількість одиниць товарів і кнопкою «купити».
+Під час натискання на кнопку «купити», має відправлятися запит (відправка форми, методом POST) на сервер, де дані зберігаються в сесію.
+На сторінці «Кошик» необхідно відобразити список обраних користувачем товарів (які були збережені у сесію).
+Якщо ви ще не обрали жодного товару, то має бути відображений напис «Перейти до покупок» (посилання).
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+  
+Під час виконання лабораторної роботи №3 було розроблено базову версію веб-застосунку "Web-магазин", що реалізує функціонал перегляду товарів та додавання їх до кошика. Були опановані основи роботи PHP для створення динамічних веб-сторінок, обробки форм та взаємодії з простою базою даних.
+
+
+Були використані наступні інженерні рішення, підходи та технології:
+
+
+Розробка серверної логіки на мові PHP:
+Серверна частина застосунку, відповідальна за обробку запитів, взаємодію з даними та генерацію HTML, була повністю реалізована на PHP.
+
+
+Використання SQLite як системи керування базами даних (СКБД):
+Для зберігання даних про товари та вміст кошика було застосовано файлову СКБД SQLite. Це дозволило уникнути складнощів з налаштуванням зовнішніх баз даних і забезпечило збереження стану кошика між сеансами роботи користувача (на відміну від простих PHP-сесій для кошика). Взаємодія з базою даних здійснювалася за допомогою розширення PDO.
+Фрагмент коду з init_db.php, що демонструє створення таблиць products та cart:
+
+
+// init_db.php
+1. <?php
+2. // Підключення до бази даних SQLite
+3. $pdo = new PDO('sqlite:shop.db');
+4. $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+5.
+6. // Створюємо таблицю для товарів (products)
+7. $pdo->exec("
+8. CREATE TABLE IF NOT EXISTS products (
+9. id INTEGER PRIMARY KEY AUTOINCREMENT,
+10. name TEXT NOT NULL,
+11. description TEXT,
+12. price REAL NOT NULL,
+13. image TEXT
+14. )
+15. ");
+16.
+17. // Створюємо таблицю для кошика (cart)
+18. $pdo->exec("
+19. CREATE TABLE IF NOT EXISTS cart (
+20. id INTEGER PRIMARY KEY AUTOINCREMENT,
+21. product_id INTEGER NOT NULL,
+22. quantity INTEGER NOT NULL,
+23. FOREIGN KEY (product_id) REFERENCES products(id)
+24. )
+25. ");
+26. // ... додавання тестових даних …
+
+
+Реалізація архітектурного підходу "Єдина точка входу" (Single Point of Entry):
+Весь веб-застосунок доступний через єдиний файл index.php, який виконує роль центрального контролера або маршрутизатора. Він аналізує запит користувача (параметр page у $_GET) і на основі цього визначає, який контент або функціонал потрібно виконати.
+Фрагмент коду з index.php, що демонструє базову маршрутизацію сторінок:
+
+
+// index.php
+1. <?php
+2. // ... підключення БД та обробка дій ...
+3.
+4. // --- Маршрутизація ---
+5. $page = $_GET['page'] ?? 'home'; // За замовчуванням сторінка "home"
+6.
+7. // ... підключення header ...
+8.
+9. // Вибір сторінки для відображення
+10. switch ($page) {
+11. case 'products': require_once 'templates/products.php'; break;
+12. case 'cart': require_once 'templates/cart.php'; break;
+13. case 'home':
+14. default: require_once 'templates/home.php'; break;
+15. }
+16. // ... підключення footer …
+
+
+Шаблонізація для розділення логіки та представлення (HTML):
+Код було розділено на логіку (в index.php) та представлення (HTML-шаблони в папці templates). Створено окремі файли для шапки (header.php), підвалу (footer.php) та основного вмісту сторінок (home.php, products.php, cart.php). Ці шаблони підключаються в index.php за допомогою require_once, що усуває дублювання коду HTML-структури.
+
+
+Обробка HTTP-запитів та взаємодія з формами:
+Для надсилання даних про обрані товари та їх кількість з користувача на сервер використовується HTML-форма на сторінці товарів (products.php) з методом POST.
+Фрагмент коду з templates/products.php, що показує форму для вибору товарів:
+
+
+// templates/products.php
+1. <h2>Наші товари</h2>
+2. // ... отримання товарів з БД ...
+3.
+4. <!-- Єдина форма для всіх товарів -->
+5. <form action="index.php" method="POST">
+6. <input type="hidden" name="action" value="update_cart">
+7.
+8. <table class="u-full-width">
+9. // ... заголовки таблиці ...
+10. <tbody>
+11. <?php foreach ($products as $product): ?>
+12. <tr>
+13. <td><?= htmlspecialchars($product['name']) ?></td>
+14. // ... інші поля товару ...
+15. <td>
+16. <input type="number" name="quantities[<?= $product['id'] ?>]" value="0" min="0">
+17. </td>
+18. </tr>
+19. <?php endforeach; ?>
+20. </tbody>
+21. </table>
+22.
+23. <button type="submit" class="button-primary u-pull-right">Send</button>
+24. </form>
+
+
+Обробка цих даних відбувається в index.php шляхом доступу до масиву $_POST['quantities'].
+
+
+Динамічна генерація вмісту сторінок:
+Вміст сторінок (наприклад, список товарів або вміст кошика) генерується динамічно на основі даних, отриманих з бази даних. PHP-код вбудовується безпосередньо в HTML-шаблони для виводу даних.
+Фрагмент коду з templates/cart.php, що показує цикл для виводу товарів у кошику:
+
+
+// templates/cart.php
+1. <h2>Ваш кошик</h2>
+2. // ... отримання товарів кошика з БД ...
+3.
+4. <?php if (empty($cartItems)): ?>
+5. // ... повідомлення про порожній кошик ...
+6. <?php else: ?>
+7. <table class="u-full-width">
+8. // ... заголовки таблиці ...
+9. <tbody>
+10. <?php foreach ($cartItems as $item): ?>
+11. <?php $itemTotal = $item['price'] * $item['quantity']; ?>
+12. <?php $totalPrice += $itemTotal; ?>
+13. <tr>
+14. <td><?= htmlspecialchars($item['name']) ?></td>
+15. <td><?= number_format($item['price'], 2) ?> грн</td>
+16. <td><?= $item['quantity'] ?></td>
+17. <td><?= number_format($itemTotal, 2) ?> грн</td>
+18. <td>
+19. <!-- Форма для видалення товару -->
+20. <form action="index.php" method="POST" style="margin: 0;">
+21. <input type="hidden" name="action" value="remove_from_cart">
+22. <input type="hidden" name="product_id" value="<?= $item['id'] ?>">
+23. <button type="submit" class="button-danger">Вилучити</button>
+24. </form>
+25. </td>
+26. </tr>
+27. <?php endforeach; ?>
+28. </tbody>
+29. // ... підсумок ...
+30. </table>
+31. <?php endif; ?>
+
+
+Результати знаходяться в Додатку Б.
+
+
+
+
+
+
+
+
+
+
+4 ВИСНОВКИ
+
+
+У ході виконання лабораторної роботи №3 були успішно освоєні базові принципи розробки динамічних веб-застосунків на PHP. Було отримано практичні навички роботи з PHP для генерації динамічного HTML-вмісту, що дозволило створювати сторінки, залежні від даних у базі. Освоєно взаємодію з базою даних SQLite через PDO, включаючи створення таблиць та виконання основних CRUD-операцій, що є фундаментальною навичкою для веб-розробника. Було застосовано важливі архітектурні патерни, такі як "Єдина точка входу" та шаблонізація, що значно покращило структуру та читабельність коду. Отримано практичний досвід роботи з HTTP-формами та їх обробки на сервері, включаючи застосування патерну Post/Redirect/Get для покращення користувацького досвіду. Результатом роботи є функціональний прототип веб-застосунку, який демонструє здатність створювати динамічні сторінки та взаємодіяти з базою даних, що закладає міцну основу для подальшого вивчення веб-розробки.
+
+
+ДОДАТОК А
+Відеозапис
+
+
+Відеозапис презентації результатів лабораторної роботи: https://youtu.be/8kxvgDO9Xwg
+
+
+Хронологічний опис відеозапису:
+0:00 - Вступ
+0:07 - Пояснення init_db.php
+2:27 - Пояснення database.php
+2:53 - Пояснення index.php
+5:41 - Пояснення header.php
+6:10 - Пояснення footer.php
+5:24 - Пояснення home.php
+6:36 - Пояснення products.php
+7:34 - Пояснення cart.php
+8:38 - Запуск сайту
+8:43 - Головна сторінка 
+8:49 - Додавання товарів до кошику
+8:56 - Робота з кошиком та демонстрація функціоналу
+
+
+
+
+
+
+ДОДАТОК Б
+Графічні матеріали
+
+
+  
+
+Рисунок Б.1 - Головна сторінка сайту
+
+
+  
+
+Рисунок Б.2 - Додавання продуктів до кошику
+
+
+  
+
+Рисунок Б.3 - Робота з кошиком
+
+
+  
+
+Рисунок Б.4 - Сповіщення про успішну оплату
+ДОДАТОК В
+Програмний код
+В.1 { smp-pzpi-23-5-butkevych-anna-lab3-code}
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab3/smp-pzpi-23-5-butkevych-anna-lab3/index.php
+
+
+1   <?php
+2   require_once 'database.php';
+3
+4   $action = $_POST['action'] ?? '';
+5
+6   if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_cart') {
+7       $quantities = $_POST['quantities'] ?? [];
+8       
+9       $pdo->exec("DELETE FROM cart");
+10      
+11      $insertStmt = $pdo->prepare("INSERT INTO cart (product_id, quantity) VALUES (?, ?)");
+12
+13      foreach ($quantities as $productId => $quantity) {
+14          $productId = (int)$productId;
+15          $quantity = (int)$quantity;
+16          if ($productId > 0 && $quantity > 0) {
+17              $insertStmt->execute([$productId, $quantity]);
+18          }
+19      }
+20      
+21      header('Location: index.php?page=cart');
+22      exit;
+23  }
+24
+25  if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'remove_from_cart') {
+26      $productId = filter_input(INPUT_POST, 'product_id', FILTER_VALIDATE_INT);
+27      if ($productId) {
+28          $stmt = $pdo->prepare("DELETE FROM cart WHERE product_id = ?");
+29          $stmt->execute([$productId]);
+30      }
+31      header('Location: index.php?page=cart');
+32      exit;
+33  }
+34
+35  if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cancel_order') {
+36      $pdo->exec("DELETE FROM cart");
+37      header('Location: index.php?page=products');
+38      exit;
+39  }
+40
+41  if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'pay_order') {
+42      $pdo->exec("DELETE FROM cart");
+43      header('Location: index.php?page=cart&status=paid');
+44      exit;
+45  }
+46
+47
+48  $page = $_GET['page'] ?? 'home'; 
+49
+50  require_once 'templates/header.php';
+51
+52  switch ($page) {
+53      case 'products':
+54          require_once 'templates/products.php';
+55          break;
+56      case 'cart':
+57          require_once 'templates/cart.php';
+58          break;
+59      case 'home':
+60      default:
+61          require_once 'templates/home.php';
+62          break;
+63  }
+64
+65  require_once 'templates/footer.php';
+
+
+В.2 { templates/header.php}
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab3/smp-pzpi-23-5-butkevych-anna-lab3/templates/header.php
+
+
+1   <!DOCTYPE html>
+2   <html lang="uk">
+3   <head>
+4       <meta charset="UTF-8">
+5       <title>Web-магазин</title>
+6       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">
+7       <link rel="stylesheet" href="public/style.css">
+8   </head>
+9   <body>
+10  <div class="container">
+11      <header class="main-header">
+12          <h1><a href="index.php">Web-магазин</a></h1>
+13          <nav>
+14              <?php
+15              $currentPage = $_GET['page'] ?? 'home';
+16              ?>
+17              <a href="index.php?page=home" class="button <?= ($currentPage === 'home') ? 'button-primary' : '' ?>">Home</a>
+18              <a href="index.php?page=products" class="button <?= ($currentPage === 'products') ? 'button-primary' : '' ?>">Products</a>
+19              <a href="index.php?page=cart" class="button <?= ($currentPage === 'cart') ? 'button-primary' : '' ?>">Cart</a>
+20          </nav>
+21      </header>
+22      <main>
+В.3 { templates/footer.php}
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab3/smp-pzpi-23-5-butkevych-anna-lab3/templates/footer.php
+
+
+1       </main>
+2       <footer class="main-footer">
+3           <p>© 2023. Харківський національний університет радіоелектроніки</p>
+4       </footer>
+5   </div>
+6   </body>
+7   </html>
+
+
+В.4 { templates/cart.php}
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab3/smp-pzpi-23-5-butkevych-anna-lab3/templates/cart.php
+
+
+1   <h2>Ваш кошик</h2>
+2
+3   <?php
+4   // Отримуємо товари в кошику
+5   $stmt = $pdo->query("
+6       SELECT p.id, p.name, p.price, c.quantity
+7       FROM cart c
+8       JOIN products p ON c.product_id = p.id
+9       WHERE c.quantity > 0
+10  ");
+11  $cartItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+12  $totalPrice = 0;
+13  ?>
+14
+15  <?php if (empty($cartItems)): ?>
+16      <p>Ваш кошик порожній.</p>
+17      <?php if (isset($_GET['status']) && $_GET['status'] === 'paid'): ?>
+18          <p class="success-message"><strong>Дякуємо! Ваше замовлення успішно оплачено.</strong></p>
+19      <?php endif; ?>
+20      <a href="index.php?page=products" class="button">Перейти до покупок</a>
+21  <?php else: ?>
+22      <table class="u-full-width">
+23          <thead>
+24              <tr>
+25                  <th>Назва товару</th>
+26                  <th>Ціна за од.</th>
+27                  <th>Кількість</th>
+28                  <th>Сума</th>
+29                  <th>Дія</th>
+30              </tr>
+31          </thead>
+32          <tbody>
+33              <?php foreach ($cartItems as $item): ?>
+34                  <?php $itemTotal = $item['price'] * $item['quantity']; ?>
+35                  <?php $totalPrice += $itemTotal; ?>
+36                  <tr>
+37                      <td><?= htmlspecialchars($item['name']) ?></td>
+38                      <td><?= number_format($item['price'], 2) ?> грн</td>
+39                      <td><?= $item['quantity'] ?></td>
+40                      <td><?= number_format($itemTotal, 2) ?> грн</td>
+41                      <td>
+42                          <form action="index.php" method="POST" style="margin: 0;">
+43                              <input type="hidden" name="action" value="remove_from_cart">
+44                              <input type="hidden" name="product_id" value="<?= $item['id'] ?>">
+45                              <button type="submit" class="button-danger">Вилучити</button>
+46                          </form>
+47                      </td>
+48                  </tr>
+49              <?php endforeach; ?>
+50          </tbody>
+51          <tfoot>
+52              <tr>
+53                  <td colspan="3" style="text-align: right; font-weight: bold;">Загальна вартість:</td>
+54                  <td style="font-weight: bold;"><?= number_format($totalPrice, 2) ?> грн</td>
+55                  <td></td>
+56              </tr>
+57          </tfoot>
+58      </table>
+59
+60      <div class="cart-actions">
+61          <form action="index.php" method="POST" class="cancel-form">
+62               <input type="hidden" name="action" value="cancel_order">
+63               <button type="submit" class="button">Cancel</button>
+64          </form>
+65          <form action="index.php" method="POST" class="pay-form">
+66               <input type="hidden" name="action" value="pay_order">
+67               <button type="submit" class="button-primary">Pay</button>
+68          </form>
+69      </div>
+70  <?php endif; ?>
+
+
+
+
+В.5 { templates/home.php}
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab3/smp-pzpi-23-5-butkevych-anna-lab3/templates/home.php
+
+
+1   <div class="home-page">
+2       <h2>Вітаємо в нашому Web-магазині!</h2>
+3       <p>Це демонстраційний проєкт, створений для лабораторної роботи з дисципліни "Скриптові мови програмування".</p>
+4       <p>Ви можете переглянути список доступних товарів, додати їх до кошика та оформити уявне замовлення.</p>
+5       <a href="index.php?page=products" class="button button-primary">Перейти до товарів</a>
+6   </div>
+
+
+В.6 { templates/products.php}
+GitHub репозиторій: https://github.com/NureButkevychAnna/smp-pzpi-23-5-butkevych-anna/blob/main/Lab3/smp-pzpi-23-5-butkevych-anna-lab3/templates/products.php
+ 
+1   <h2>Наші товари</h2>
+2
+3   <?php
+4   // Отримуємо всі товари з бази даних
+5   $stmt = $pdo->query("SELECT * FROM products ORDER BY name");
+6   $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+7   ?>
+8
+9   <!-- Єдина форма для всіх товарів -->
+10  <form action="index.php" method="POST">
+11      <input type="hidden" name="action" value="update_cart">
+12      
+13      <table class="u-full-width">
+14          <thead>
+15              <tr>
+16                  <th>Назва товару</th>
+17                  <th>Опис</th>
+18                  <th>Ціна</th>
+19                  <th>Кількість</th>
+20              </tr>
+21          </thead>
+22          <tbody>
+23              <?php foreach ($products as $product): ?>
+24                  <tr>
+25                      <td><?= htmlspecialchars($product['name']) ?></td>
+26                      <td><?= htmlspecialchars($product['description']) ?></td>
+27                      <td><?= number_format($product['price'], 2) ?> грн</td>
+28                      <td>
+29                          <!-- Назва інпуту у вигляді масиву, щоб відправити дані про всі товари -->
+30                          <input type="number" name="quantities[<?= $product['id'] ?>]" value="0" min="0" style="width: 80px;">
+31                      </td>
+32                  </tr>
+33              <?php endforeach; ?>
+34          </tbody>
+35      </table>
+36
+37      <button type="submit" class="button-primary u-pull-right">Send</button>
+38  </form>
